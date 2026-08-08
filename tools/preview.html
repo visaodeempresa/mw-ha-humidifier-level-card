@@ -44,11 +44,13 @@ const LEVELS=["LEVEL 1","LEVEL 2","LEVEL 3"];
 const COUNT=["1 Hour","2 Hours","3 Hours","cancel"];
 const base={
  "select.nivel":S("LEVEL 1",{options:LEVELS,friendly_name:"UMIDIFICADOR ESCRITÓRIO Spraying level"}),
+ "select.nivel2":S("LEVEL 2",{options:LEVELS,friendly_name:"Spraying level"}),
  "select.nivel3":S("LEVEL 3",{options:LEVELS,friendly_name:"Spraying level"}),
  "select.countdown":S("cancel",{options:COUNT,friendly_name:"Countdown"}),
  "select.countdown_on":S("3 Hours",{options:COUNT,friendly_name:"Countdown"}),
  "select.morto":S("unavailable",{friendly_name:"UMIDIFICADOR DA SALA Spraying level"}),
 };
+const NIVEIS=["select.nivel","select.nivel2","select.nivel3"];
 const hass={states:base,entities:{},devices:{},callService(d,s,x){console.log("callService",d,s,x);}};
 
 const add=(host,cfg,cap)=>{
@@ -76,6 +78,19 @@ const SHOTS = {
       "option_labels — o valor enviado ao HA continua o original");
     add(host,{entity:"select.countdown_on",name:"DESLIGAR EM",icon:"mdi:timer-outline"},
       "o mesmo card serve para o countdown");
+  },
+  "niveis": (host)=>{
+    ["agua","semaforo","calor","arco-iris"].forEach(sch=>{
+      NIVEIS.forEach((e,i)=>add(host,{entity:e,name:"NÍVEL "+(i+1),level_scheme:sch},
+        i===2?"level_scheme: "+sch:null));
+    });
+  },
+  "cores-livres": (host)=>{
+    NIVEIS.forEach((e,i)=>add(host,{entity:e,name:"NÍVEL "+(i+1),
+      level_colors:{"LEVEL 1":"#dff1ff","LEVEL 2":"#4f8fd6","LEVEL 3":"#12203a"}},
+      i===2?"level_colors com cor livre — no papel escuro o texto acende sozinho":null));
+    add(host,{entity:"select.countdown",name:"TIMER",level_colors:{cancel:"#a9dcc4"}},
+      "cor escolhida a dedo pinta até a opção de desligado");
   },
   "tamanhos": (host)=>{
     [36,48,64].forEach(h=>add(host,{entity:"select.nivel3",name:"NÍVEL",height:h},"height: "+h));

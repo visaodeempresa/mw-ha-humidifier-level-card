@@ -21,7 +21,7 @@
 (() => {
   "use strict";
 
-  const VERSION = "0.1.0";
+  const VERSION = "0.2.0";
 
   const DEFAULTS = {
     entity: "",
@@ -35,6 +35,8 @@
     height: 48,              // altura da linha, px
     radius: 14,
     paper_color: "paper",
+    level_scheme: "none",    // rampa predefinida: agua, semaforo, calor…
+    level_colors: null,      // { "LEVEL 1": "blue-2" } ou ["blue-2", …] — vence o esquema
     // cores por estado
     color_on_name: "#1a1a1a",
     color_off_name: "rgba(255, 255, 255, 0.78)",
@@ -73,6 +75,84 @@
       label: `${h[1]} · tom ${i + 1}${i === 0 ? " (mais claro)" : i === 6 ? " (mais encardido)" : ""}`,
     }))));
   // <<< paper-palette v1
+
+  /* ---------------------- cor: leitura e derivação ----------------------
+   * parseColor devolve null quando não reconhece o texto — é assim que uma
+   * cor nomeada do CSS ("tomato") sobrevive: não dá para calcular contraste
+   * nem escurecer, então ela é usada crua, do jeito que veio. */
+  const parseColor = (str) => {
+    const s = String(str || "").trim();
+    let m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:[,/]\s*([\d.]+)\s*)?\)$/i);
+    if (m) return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
+    m = s.match(/^#([0-9a-f]{6})$/i);
+    if (m) { const n = parseInt(m[1], 16); return { r: n >> 16, g: (n >> 8) & 255, b: n & 255, a: 1 }; }
+    m = s.match(/^#([0-9a-f]{3})$/i);
+    if (m) { const [r, g, b] = m[1].split("").map((ch) => parseInt(ch + ch, 16)); return { r, g, b, a: 1 }; }
+    return null;
+  };
+  const parseColorOr = (str, fb = { r: 128, g: 128, b: 128, a: 1 }) => parseColor(str) || fb;
+  const toHex = ({ r, g, b }) => "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+  const toRgba = ({ r, g, b, a }) => `rgba(${r}, ${g}, ${b}, ${a})`;
+  const clamp255 = (v) => Math.max(0, Math.min(255, Math.round(v)));
+  const shade = ({ r, g, b, a }, f) =>
+    `rgba(${clamp255(r * f)}, ${clamp255(g * f)}, ${clamp255(b * f)}, ${a === undefined ? 1 : a})`;
+  // luminância perceptual simples (sRGB ponderado) — só decide claro/escuro
+  const luma = ({ r, g, b }) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+  /* ------------------------- COR POR NÍVEL -------------------------
+   * A rampa é amostrada pela POSIÇÃO da opção: serve para 3 níveis de névoa
+   * e para um countdown de 9 horas sem uma linha de configuração.
+   *
+   * Por que cor própria e não a paleta de papel: papel encardido é de
+   * saturação baixa DE PROPÓSITO (descansa a vista num card que fica ligado
+   * o dia todo) — e três tons dele lado a lado ficam indistinguíveis, que é
+   * justamente o contrário do que uma cor por nível serve para fazer. Estas
+   * são cartolinas coloridas: saturação média, nunca néon, e o relevo de
+   * papel continua sendo desenhado por cima. Quem quiser o sussurro tem os
+   * esquemas «névoa» e «encardido», feitos com as chaves da paleta.
+   *
+   * As de matiz único vão do claro (nível baixo) ao fundo (nível alto). */
+  const LEVEL_SCHEMES = [
+    ["none", "— cor única (sem cor por nível) —", []],
+    ["agua", "Água · azul claro → azul fundo", ["#e3f1fb", "#a8d4f0", "#5aa9dd", "#1d6fa8"]],
+    ["verde", "Verde · broto → mata", ["#e2f0dc", "#b5dcaa", "#79bd6f", "#33793a"]],
+    ["mare", "Maré · verde-água → anil", ["#dff1e6", "#a9dcc4", "#56b4a4", "#1f6f8c"]],
+    ["semaforo", "Semáforo · verde → amarelo → vermelho", ["#bfe3b5", "#f2e08a", "#f0b46a", "#d1604c"]],
+    ["calor", "Calor · amarelo → laranja → vermelho", ["#f7e6a8", "#f1b96b", "#e2794f", "#b8342a"]],
+    ["arco-iris", "Arco-íris · violeta → vermelho",
+      ["#cdbde3", "#a9b6e0", "#8fc3e2", "#a8d8b0", "#f0e199", "#f0b877", "#e0806f"]],
+    ["noite", "Noite · anil claro → noite fechada", ["#cfd6ec", "#8f9dc9", "#5b5f96", "#2f2f57"]],
+    ["nevoa", "Névoa · sussurro de papel (creme → azul)", ["paper", "blue-2", "blue-4", "blue-6"]],
+    ["encardido", "Encardido · sussurro de papel (creme → papel velho)",
+      ["paper", "yellow-3", "orange-4", "orange-6"]],
+  ];
+  const schemeColors = (key) => (LEVEL_SCHEMES.find((s) => s[0] === String(key || "none")) || [])[2] || [];
+  const schemeOptions = () => LEVEL_SCHEMES.map(([value, label]) => ({ value, label }));
+
+  // amostra a rampa pela posição: o primeiro nível pega a primeira cor, o
+  // último pega a última, e o meio se distribui — vale para 2 ou 9 opções
+  const rampAt = (list, i, n) => {
+    if (!list.length) return null;
+    if (n <= 1 || list.length === 1) return list[list.length - 1];
+    return list[Math.round((i * (list.length - 1)) / (n - 1))];
+  };
+
+  const isPaperKey = (v) => v === "paper" || /^[a-z]+-[1-7]$/.test(String(v || "").trim());
+  const isRawCss = (v) => /^(linear|radial|conic|repeating-linear|repeating-radial)-gradient\(|^var\(/i
+    .test(String(v || "").trim());
+
+  /* Texto do usuário → o que o card precisa: um fundo pronto e se ele é
+   * escuro (aí o texto preto de papel deixa de servir). Aceita chave da
+   * paleta, hex, rgb/rgba, gradiente inteiro e nome de cor do CSS. */
+  const levelBackground = (value) => {
+    const v = String(value ?? "").trim();
+    if (!v) return null;
+    if (isPaperKey(v)) return { bg: paperGradient(v), dark: false };
+    if (isRawCss(v)) return { bg: v, dark: false };
+    const c = parseColor(v);
+    if (!c) return { bg: v, dark: false };   // nome do CSS: usa cru
+    return { bg: `linear-gradient(145deg, ${shade(c, 1.06)}, ${shade(c, 0.86)})`, dark: luma(c) < 0.55 };
+  };
 
   // vibração: o app companion escuta "haptic" na window; fora dele, o
   // navigator.vibrate (Chrome do Android; o Safari do iPhone não vibra)
@@ -311,6 +391,36 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
       this._sel.disabled = dead || !options.length;
     }
 
+    /* A cor do nível atual, em ordem de precedência:
+     *   1) `level_colors` apontando a opção pelo nome (ou pelo índice, se for
+     *      lista) — é a palavra final do dono, vale até na opção de desligado;
+     *   2) a rampa do `level_scheme`, amostrada pela posição;
+     *   3) nada — o card volta para o `paper_color` de sempre.
+     * As opções de desligado (`cancel`, `off`…) ficam FORA da conta da rampa:
+     * no countdown elas moram no fim da lista e puxariam a rampa inteira. */
+    _levelColor(st) {
+      const c = this._config;
+      const state = String(st?.state ?? "");
+      if (!state) return null;
+      const map = c.level_colors;
+      const options = Array.isArray(st?.attributes?.options) ? st.attributes.options : [];
+      const live = options.filter((o) => !isOffOption(o));
+      const i = live.indexOf(state);
+
+      let raw = null;
+      if (Array.isArray(map)) { if (i >= 0) raw = map[i]; }
+      else if (map && typeof map === "object") raw = map[state];
+      if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+        const explicit = levelBackground(raw);
+        if (explicit) return { ...explicit, explicit: true };
+      }
+
+      const list = schemeColors(c.level_scheme);
+      if (!list.length || i < 0) return null;
+      const bg = levelBackground(rampAt(list, i, live.length));
+      return bg && { ...bg, explicit: false };
+    }
+
     _update() {
       const c = this._config;
       if (!c || !this._hass) return;
@@ -318,11 +428,20 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
 
       const st = this._st;
       const dead = isDead(st);
-      const on = !dead && !isOffOption(st.state);
-      const mode = dead ? "dead" : on ? "on" : "off";
+      const lvl = dead ? null : this._levelColor(st);
+      // uma cor escolhida a dedo para a opção de desligado é um pedido, não um
+      // acidente: o card a mostra como papel, sem deixar de ser mode=off
+      const on = !dead && (!isOffOption(st.state) || !!(lvl && lvl.explicit));
+      const mode = dead ? "dead" : (!isOffOption(st?.state) ? "on" : "off");
       if (this.getAttribute("mode") !== mode) this.setAttribute("mode", mode);
 
-      const paper = paperGradient(c.paper_color);
+      const paper = (on && lvl) ? lvl.bg : paperGradient(c.paper_color);
+      const darkPaper = !!(on && lvl && lvl.dark);
+      // no papel escuro o preto de sempre some; o creme da família toma o lugar
+      const fgOn = c.color_on_name !== DEFAULTS.color_on_name ? c.color_on_name
+        : (darkPaper ? "#fdfaf3" : DEFAULTS.color_on_name);
+      const borderOn = c.color_on_border !== DEFAULTS.color_on_border ? c.color_on_border
+        : (darkPaper ? "rgba(255, 255, 255, 0.20)" : DEFAULTS.color_on_border);
       this._set("--mw-h", `${Number(c.height) || 48}px`);
       this._set("--mw-r", `${Number(c.radius) || 14}px`);
       this._set("--mw-icon", `${Math.round((Number(c.height) || 48) * 0.46)}px`);
@@ -344,21 +463,26 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
         this._set("--mw-focus", "rgba(255,255,255,.5)");
       } else if (on) {
         this._set("--mw-bg", paper);
-        this._set("--mw-border", c.color_on_border);
-        this._set("--mw-shadow",
-          "0 2px 6px rgba(0,0,0,0.18),0 6px 16px rgba(0,0,0,0.12),inset 2px 2px 5px rgba(255,252,240,0.85),inset -2px -2px 5px rgba(0,0,0,0.10)");
-        this._set("--mw-fg", c.color_on_name);
-        this._set("--mw-icon-color", c.color_on_name);
-        this._set("--mw-icon-filter",
-          "drop-shadow(1px 2px 2px rgba(0,0,0,0.45)) drop-shadow(3px 5px 7px rgba(0,0,0,0.22))");
+        this._set("--mw-border", borderOn);
+        // o relevo de papel é luz vinda de cima à esquerda; num papel escuro a
+        // luz creme vira mancha, então o realce interno encolhe junto
+        this._set("--mw-shadow", darkPaper
+          ? "0 2px 6px rgba(0,0,0,0.30),0 6px 16px rgba(0,0,0,0.20),inset 2px 2px 5px rgba(255,255,255,0.16),inset -2px -2px 5px rgba(0,0,0,0.30)"
+          : "0 2px 6px rgba(0,0,0,0.18),0 6px 16px rgba(0,0,0,0.12),inset 2px 2px 5px rgba(255,252,240,0.85),inset -2px -2px 5px rgba(0,0,0,0.10)");
+        this._set("--mw-fg", fgOn);
+        this._set("--mw-icon-color", fgOn);
+        this._set("--mw-icon-filter", darkPaper
+          ? "drop-shadow(0 1px 2px rgba(0,0,0,0.55))"
+          : "drop-shadow(1px 2px 2px rgba(0,0,0,0.45)) drop-shadow(3px 5px 7px rgba(0,0,0,0.22))");
         this._set("--mw-strike", "none");
         this._set("--mw-glow", "none");
-        this._set("--mw-pill", "rgba(0,0,0,0.055)");
-        this._set("--mw-pill-border", "rgba(0,0,0,0.16)");
+        this._set("--mw-pill", darkPaper ? "rgba(0,0,0,0.22)" : "rgba(0,0,0,0.055)");
+        this._set("--mw-pill-border", darkPaper ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.16)");
         // pílula rebaixada no papel: o inverso do relevo do card
-        this._set("--mw-pill-shadow",
-          "inset 1px 1px 3px rgba(0,0,0,0.18), inset -1px -1px 2px rgba(255,255,255,0.75)");
-        this._set("--mw-focus", "rgba(0,0,0,.35)");
+        this._set("--mw-pill-shadow", darkPaper
+          ? "inset 1px 1px 3px rgba(0,0,0,0.45), inset -1px -1px 2px rgba(255,255,255,0.12)"
+          : "inset 1px 1px 3px rgba(0,0,0,0.18), inset -1px -1px 2px rgba(255,255,255,0.75)");
+        this._set("--mw-focus", darkPaper ? "rgba(255,255,255,.45)" : "rgba(0,0,0,.35)");
       } else {
         this._set("--mw-bg", c.color_off_bg);
         this._set("--mw-border", c.color_off_border);
@@ -409,6 +533,7 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
     height: "Altura da linha",
     radius: "Arredondamento",
     paper_color: "Cor do papel (ligado)",
+    level_scheme: "Esquema de cores por nível",
     option_labels: "Renomear as opções ({ \"LEVEL 1\": \"Baixo\" })",
     color_on_name: "Ligado: texto e ícone",
     color_on_border: "Ligado: borda",
@@ -424,19 +549,6 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
     "color_on_name", "color_on_border", "color_off_bg", "color_off_border",
     "color_off_name", "color_unavail_bg", "color_unavail_border", "color_dead",
   ];
-
-  const parseColor = (str) => {
-    const s = String(str || "").trim();
-    let m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/i);
-    if (m) return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
-    m = s.match(/^#([0-9a-f]{6})$/i);
-    if (m) { const n = parseInt(m[1], 16); return { r: n >> 16, g: (n >> 8) & 255, b: n & 255, a: 1 }; }
-    m = s.match(/^#([0-9a-f]{3})$/i);
-    if (m) { const [r, g, b] = m[1].split("").map((ch) => parseInt(ch + ch, 16)); return { r, g, b, a: 1 }; }
-    return { r: 128, g: 128, b: 128, a: 1 };
-  };
-  const toHex = ({ r, g, b }) => "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
-  const toRgba = ({ r, g, b, a }) => `rgba(${r}, ${g}, ${b}, ${a})`;
 
   const ALL = "__all__";
   const deviceOf = (hass, id) => hass?.entities?.[id]?.device_id || "";
@@ -495,6 +607,9 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
       // o filtro dos selects depende do hass: sem reconstruir o esquema aqui,
       // um hass que chegue depois do setConfig deixaria a lista sem filtro
       if (this._form) { this._form.hass = hass; this._form.schema = this._schema(); }
+      // as opções da entidade só existem quando o hass chega — e ele chega
+      // depois do setConfig; a key interna evita redesenhar à toa
+      if (this._levelsEl) this._renderLevels();
     }
 
     _schema() {
@@ -524,6 +639,11 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
           ],
         },
         {
+          name: "", type: "expandable", title: "Cor por nível", schema: [
+            { name: "level_scheme", selector: sel(schemeOptions()) },
+          ],
+        },
+        {
           name: "", type: "expandable", title: "Renomear as opções", schema: [
             { name: "option_labels", selector: { object: {} } },
           ],
@@ -543,7 +663,100 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
       const data = { ...DEFAULTS, ...this._config };
       for (const k of Object.keys(data)) if (data[k] === "" || data[k] === null) delete data[k];
       this._form.data = data;
+      this._renderLevels();
       this._renderColors();
+    }
+
+    // rótulo mostrado ao lado de cada opção — o mesmo que o card desenha
+    _optionLabel(opt) {
+      const map = this._config?.option_labels;
+      return (map && typeof map === "object" && map[opt] !== undefined) ? String(map[opt]) : String(opt);
+    }
+
+    _levelOptions() {
+      const st = this._hass?.states?.[this._config?.entity];
+      return Array.isArray(st?.attributes?.options) ? st.attributes.options : [];
+    }
+
+    /* Uma linha por opção da entidade: escolher um papel da paleta, uma cor
+     * livre, ou deixar por conta do esquema. É o «configurar outras cores»
+     * sem precisar escrever o mapa `level_colors` à mão no YAML. */
+    _renderLevels() {
+      if (!this._levelsEl) {
+        this._levelsEl = document.createElement("details");
+        this._levelsEl.style.cssText =
+          "margin-top:16px;border:1px solid var(--divider-color);border-radius:8px;padding:8px 12px;";
+        this.appendChild(this._levelsEl);
+      }
+      const options = this._levelOptions();
+      const map = (this._config.level_colors && typeof this._config.level_colors === "object"
+        && !Array.isArray(this._config.level_colors)) ? this._config.level_colors : {};
+      // o HA empurra `hass` a cada mudança de qualquer entidade da casa:
+      // redesenhar sempre roubaria o foco do seletor aberto no editor
+      const key = JSON.stringify([this._config.entity, options, map,
+        this._config.level_scheme, this._config.option_labels]);
+      if (key === this._levelsKey) return;
+      this._levelsKey = key;
+
+      const FREE = "__free__";
+      const list = schemeColors(this._config.level_scheme);
+      const live = options.filter((o) => !isOffOption(o));
+      const paperItems = paperOptions();
+      const rows = options.map((opt) => {
+        const cur = map[opt];
+        const i = live.indexOf(opt);
+        const fromScheme = (list.length && i >= 0) ? rampAt(list, i, live.length) : null;
+        const eff = levelBackground(cur || fromScheme);
+        const isPaper = isPaperKey(cur);
+        const picked = cur === undefined || cur === "" ? "" : (isPaper ? String(cur).trim() : FREE);
+        const swatch = eff ? eff.bg : PAPER_DEFAULT;
+        const opts = [`<option value=""${picked === "" ? " selected" : ""}>— do esquema —</option>`]
+          .concat(paperItems.map((p) =>
+            `<option value="${esc(p.value)}"${picked === p.value ? " selected" : ""}>${esc(p.label)}</option>`))
+          .concat([`<option value="${FREE}"${picked === FREE ? " selected" : ""}>Cor livre (a do quadradinho)</option>`])
+          .join("");
+        return `<div class="mhl-lrow" data-opt="${esc(opt)}">
+          <span class="lbl">${esc(this._optionLabel(opt))}${isOffOption(opt) ? " <em>(desligado)</em>" : ""}</span>
+          <span class="sw" style="background:${esc(swatch)}"></span>
+          <select>${opts}</select>
+          <input type="color" value="${toHex(parseColorOr(isPaper || !cur ? "#7fc7d9" : cur))}" title="cor livre">
+          <code>${esc(cur || (fromScheme ? fromScheme + " (esquema)" : "—"))}</code>
+        </div>`;
+      }).join("");
+
+      this._levelsEl.innerHTML = `
+        <summary style="cursor:pointer;font-weight:500;">Cor de cada opção (vence o esquema)</summary>
+        <style>
+          .mhl-lrow{display:grid;grid-template-columns:1fr 26px minmax(150px,1.2fr) 44px minmax(90px,.8fr);
+            gap:10px;align-items:center;padding:6px 0;}
+          .mhl-lrow .lbl{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+          .mhl-lrow .lbl em{opacity:.5;font-size:11px;}
+          .mhl-lrow .sw{width:26px;height:22px;border-radius:5px;border:1px solid var(--divider-color);}
+          .mhl-lrow input[type=color]{width:40px;height:28px;border:none;background:none;cursor:pointer;padding:0;}
+          .mhl-lrow code{font-size:11px;opacity:.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+          .mhl-hint{font-size:12px;opacity:.65;padding:6px 0;}
+        </style>
+        ${options.length ? rows
+          : `<div class="mhl-hint">Escolha primeiro uma entidade com opções — elas aparecem aqui uma a uma.</div>`}`;
+
+      this._levelsEl.querySelectorAll(".mhl-lrow").forEach((rowEl) => {
+        const opt = rowEl.dataset.opt;
+        const write = (value) => {
+          const clean = { ...this._config };
+          const next = { ...map };
+          if (!value) delete next[opt]; else next[opt] = value;
+          if (Object.keys(next).length) clean.level_colors = next; else delete clean.level_colors;
+          this._config = clean;
+          this.dispatchEvent(new CustomEvent("config-changed",
+            { bubbles: true, composed: true, detail: { config: clean } }));
+          this._renderForm();
+        };
+        rowEl.querySelector("select").addEventListener("change", (ev) => {
+          const v = ev.target.value;
+          write(v === FREE ? rowEl.querySelector("input[type=color]").value : v);
+        });
+        rowEl.querySelector("input[type=color]").addEventListener("change", (ev) => write(ev.target.value));
+      });
     }
 
     _renderColors() {
@@ -555,7 +768,7 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
       }
       const rows = COLOR_FIELDS.map((name) => {
         const cur = this._config[name] ?? DEFAULTS[name] ?? "";
-        const c = parseColor(cur || "rgba(128,128,128,1)");
+        const c = parseColorOr(cur);
         return `<div class="mhl-crow" data-name="${name}">
           <span class="lbl">${LABELS[name] || name}</span>
           <input type="color" value="${toHex(c)}" title="cor">
@@ -577,7 +790,7 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
         const apply = () => {
           const hex = rowEl.querySelector("input[type=color]").value;
           const a = parseFloat(rowEl.querySelector("input[type=range]").value);
-          const { r, g, b } = parseColor(hex);
+          const { r, g, b } = parseColorOr(hex);
           const value = a >= 1 ? hex : toRgba({ r, g, b, a });
           const clean = { ...this._config };
           if (value === DEFAULTS[name]) delete clean[name]; else clean[name] = value;

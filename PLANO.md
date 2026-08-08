@@ -27,6 +27,19 @@ dado — e as *lições* dos irmãos, que vieram como código copiado à mão.
 - [x] Bancada em `tools/preview.html`, herdando `line-height: 32px` de propósito.
 - [x] README com 6 exemplos e imagens.
 
+## Entrega 1.1 — cor por nível (v0.2.0)
+
+- [x] `level_scheme`: 9 rampas prontas + `none`, amostradas pela **posição**
+      da opção (serve para 3 níveis e para um countdown de 9 horas).
+- [x] Opções de desligado fora da conta da rampa.
+- [x] `level_colors`: cor por opção (mapa) ou por posição (lista), vencendo o
+      esquema. Aceita paleta, hex, `rgb()`, nome do CSS e gradiente inteiro.
+- [x] Contraste automático em papel escuro, com `color_on_name` mandando.
+- [x] Cor apontada para a opção de desligado pinta sem mentir o `mode`.
+- [x] Editor: seção do esquema + uma linha por opção da entidade.
+- [x] Probe: 66 verificações. Bancada: cenas `niveis` e `cores-livres`.
+- [ ] **Conferência na tela do HA — do dono.**
+
 ## Entrega 2 — publicação
 
 - [x] Repositório público, release v0.1.0 por tag assinada, HACS.
