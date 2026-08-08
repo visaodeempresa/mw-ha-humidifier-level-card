@@ -165,6 +165,92 @@ check("option_labels renomeia o que aparece",
 check("option_labels não mexe no valor enviado ao HA",
   opts(pt).map((o) => o.v).join("|") === LEVELS.join("|"));
 
+console.log("cor por nível:");
+const atLevel = (lvl, cfg) => mk({ entity: ESC, ...cfg },
+  { [ESC]: S(lvl, { options: LEVELS, friendly_name: "Spraying level" }) });
+const bgAt = (lvl, cfg) => prop(atLevel(lvl, cfg), "--mw-bg");
+
+// primeiro stop do gradiente derivado, em números — dá para comparar cor
+const rgbAt = (lvl, cfg) => {
+  const m = /rgba\((\d+), (\d+), (\d+)/.exec(bgAt(lvl, cfg));
+  return m ? { r: +m[1], g: +m[2], b: +m[3] } : null;
+};
+const agua = LEVELS.map((l) => bgAt(l, { level_scheme: "agua" }));
+check("cada nível ganha um azul diferente com o esquema 'agua'",
+  new Set(agua).size === 3 &&
+  LEVELS.every((l) => { const c = rgbAt(l, { level_scheme: "agua" }); return c && c.b > c.r; }),
+  JSON.stringify(agua));
+check("a rampa vai do claro ao fundo, sem passar por um meio mais claro que a ponta",
+  (() => {
+    const l = LEVELS.map((x) => rgbAt(x, { level_scheme: "agua" }).r);
+    return l[0] > l[1] && l[1] > l[2];
+  })());
+check("a diferença entre níveis vizinhos é visível, não um sussurro",
+  (() => {
+    const c = LEVELS.map((x) => rgbAt(x, { level_scheme: "agua" }));
+    return Math.abs(c[0].r - c[1].r) > 24 && Math.abs(c[1].b - c[2].b) > 24;
+  })(), JSON.stringify(LEVELS.map((x) => rgbAt(x, { level_scheme: "agua" }))));
+check("sem esquema, o papel continua o de sempre (nada muda para quem já usa)",
+  bgAt("LEVEL 1") === bgAt("LEVEL 3") &&
+  bgAt("LEVEL 3") === "linear-gradient(145deg, #fdfaf3, #e8e3d8)");
+check("esquema de matizes diferentes (semáforo) troca a cor, não só o tom",
+  (() => {
+    const lo = rgbAt("LEVEL 1", { level_scheme: "semaforo" });
+    const hi = rgbAt("LEVEL 3", { level_scheme: "semaforo" });
+    return lo.g > lo.r && hi.r > hi.g;
+  })(), JSON.stringify([rgbAt("LEVEL 1", { level_scheme: "semaforo" }), rgbAt("LEVEL 3", { level_scheme: "semaforo" })]));
+check("os esquemas de sussurro continuam saindo da paleta de papel",
+  bgAt("LEVEL 3", { level_scheme: "nevoa" }).includes("hsl(203"),
+  bgAt("LEVEL 3", { level_scheme: "nevoa" }));
+check("esquema desconhecido não quebra — cai na cor única",
+  bgAt("LEVEL 2", { level_scheme: "nao-existe" }) === "linear-gradient(145deg, #fdfaf3, #e8e3d8)");
+
+const fixa = { level_scheme: "agua", level_colors: { "LEVEL 2": "red-5" } };
+check("cor escolhida a dedo vence o esquema", bgAt("LEVEL 2", fixa).includes("hsl(6"));
+check("as outras opções continuam no esquema",
+  bgAt("LEVEL 1", fixa) === bgAt("LEVEL 1", { level_scheme: "agua" }));
+check("cor livre em hex vira papel com relevo (gradiente derivado)",
+  /^linear-gradient\(145deg, rgba\(/.test(bgAt("LEVEL 1", { level_colors: { "LEVEL 1": "#2b6cb0" } })),
+  bgAt("LEVEL 1", { level_colors: { "LEVEL 1": "#2b6cb0" } }));
+check("gradiente inteiro escrito no YAML passa cru",
+  bgAt("LEVEL 1", { level_colors: { "LEVEL 1": "linear-gradient(90deg, #000, #fff)" } })
+    === "linear-gradient(90deg, #000, #fff)");
+check("nome de cor do CSS é usado como veio",
+  bgAt("LEVEL 1", { level_colors: { "LEVEL 1": "tomato" } }) === "tomato");
+check("lista por posição também vale (level_colors como array)",
+  bgAt("LEVEL 3", { level_colors: ["red-2", "red-4", "red-6"] })
+    === bgAt("LEVEL 3", { level_colors: { "LEVEL 3": "red-6" } }),
+  bgAt("LEVEL 3", { level_colors: ["red-2", "red-4", "red-6"] }));
+
+const escuro = atLevel("LEVEL 1", { level_colors: { "LEVEL 1": "#12203a" } });
+check("papel escuro acende o texto em creme (senão o preto sumiria)",
+  prop(escuro, "--mw-fg") === "#fdfaf3" && prop(escuro, "--mw-icon-color") === "#fdfaf3");
+check("papel escuro troca o relevo: o realce interno branco vira sutil",
+  prop(escuro, "--mw-shadow").includes("rgba(255,255,255,0.16)"));
+const claro = atLevel("LEVEL 1", { level_colors: { "LEVEL 1": "#ffe08a" } });
+check("papel claro mantém o preto de sempre", prop(claro, "--mw-fg") === "#1a1a1a");
+check("cor de texto escrita pelo dono vence o contraste automático",
+  prop(atLevel("LEVEL 1", { level_colors: { "LEVEL 1": "#12203a" }, color_on_name: "#00ff00" }),
+    "--mw-fg") === "#00ff00");
+
+const CD = "select.escritorio_umidificador_escritorio_local_countdown";
+const cd = (state, cfg) => mk({ entity: CD, ...cfg },
+  { [CD]: S(state, { options: COUNTDOWN, friendly_name: "Countdown" }) });
+check("a opção de desligado fica fora da rampa (3 Hours é o fim, não o meio)",
+  prop(cd("3 Hours", { level_scheme: "agua" }), "--mw-bg") ===
+  prop(atLevel("LEVEL 3", { level_scheme: "agua" }), "--mw-bg"));
+check("com esquema, 'cancel' continua sendo o desligado escuro",
+  prop(cd("cancel", { level_scheme: "agua" }), "--mw-bg") === "rgba(0, 0, 0, 0.45)" &&
+  cd("cancel", { level_scheme: "agua" }).getAttribute("mode") === "off");
+const cdPinta = cd("cancel", { level_colors: { cancel: "green-3" } });
+check("mas uma cor escolhida a dedo pinta até o desligado",
+  prop(cdPinta, "--mw-bg").includes("hsl(96"));
+check("…sem mentir sobre o estado: continua mode=off",
+  cdPinta.getAttribute("mode") === "off");
+check("sem resposta ignora a cor do nível",
+  prop(mk({ entity: "select.umidificador_da_sala_spraying_level", level_scheme: "agua" }), "--mw-bg")
+    === "rgba(80, 0, 0, 0.6)");
+
 console.log("aparência e configuração:");
 const custom = mk({ entity: ESC, name: "NÍVEL", icon: "mdi:spray", paper_color: "blue-3", height: 56 });
 check("nome do YAML vence", custom._nm.textContent === "NÍVEL");
@@ -219,8 +305,21 @@ check("dispositivos filtrados por umidificador (3 + todos)",
 check("entidades filtradas pelo dispositivo escolhido",
   byName("entity").selector.select.options.length === 2,
   JSON.stringify(byName("entity").selector.select.options.map((o) => o.value)));
-check("seções expansíveis (aparência, rótulos)",
-  schema.filter((f) => f.type === "expandable").length === 2);
+check("seções expansíveis (aparência, cor por nível, rótulos)",
+  schema.filter((f) => f.type === "expandable").length === 3);
+check("esquema de cores por nível no editor, com a opção de cor única",
+  byName("level_scheme")?.selector.select.options[0].value === "none" &&
+  byName("level_scheme").selector.select.options.length >= 8,
+  JSON.stringify(byName("level_scheme")?.selector.select.options.map((o) => o.value)));
+
+const edLvl = new reg["mw-humidifier-level-card-editor"]();
+edLvl.hass = hass;
+edLvl.setConfig({ entity: ESC, level_scheme: "agua" });
+check("o painel de cor por opção abre uma linha por opção da entidade",
+  (edLvl._levelsEl.innerHTML.match(/class="mhl-lrow"/g) || []).length === LEVELS.length,
+  edLvl._levelsEl.innerHTML.slice(0, 120));
+check("o painel mostra de onde veio a cor de cada opção",
+  edLvl._levelsEl.innerHTML.includes("(esquema)"));
 
 const edAll = new reg["mw-humidifier-level-card-editor"]();
 edAll.hass = hass;
