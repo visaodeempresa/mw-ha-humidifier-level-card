@@ -36,6 +36,7 @@
     radius: 14,
     paper_color: "paper",
     level_scheme: "none",    // rampa predefinida: agua, semaforo, calor…
+    level_paint: "card",     // onde a cor do nível pousa: card | select | both
     level_colors: null,      // { "LEVEL 1": "blue-2" } ou ["blue-2", …] — vence o esquema
     // cores por estado
     color_on_name: "#1a1a1a",
@@ -129,6 +130,14 @@
   const schemeColors = (key) => (LEVEL_SCHEMES.find((s) => s[0] === String(key || "none")) || [])[2] || [];
   const schemeOptions = () => LEVEL_SCHEMES.map(([value, label]) => ({ value, label }));
 
+  // onde a cor pousa. `select` é o discreto: a parede segue de papel e só o
+  // controle muda de cor — bom para uma coluna de umidificadores lado a lado.
+  const PAINT_OPTIONS = [
+    { value: "card", label: "O card inteiro (papel colorido)" },
+    { value: "select", label: "Só o seletor (a pílula)" },
+    { value: "both", label: "Os dois" },
+  ];
+
   // amostra a rampa pela posição: o primeiro nível pega a primeira cor, o
   // último pega a última, e o meio se distribui — vale para 2 ou 9 opções
   const rampAt = (list, i, n) => {
@@ -214,11 +223,15 @@ ha-card{background:none;border:none;box-shadow:none;padding:0;overflow:visible;}
   text-decoration:var(--mw-strike,none);text-shadow:var(--mw-glow,none);}
 /* margin-left:auto: escondendo o rótulo, o seletor continua encostado à
    direita em vez de escorregar para o começo da linha */
+/* color própria (e não herdada da linha): com level_paint em "select" a cor
+   do nível pousa aqui, e o texto de dentro precisa de contraste contra ELA,
+   não contra o papel do card. Sem --mw-pill-fg, herda como sempre herdou.
+   (Nada de crase dentro deste CSS: ele mora num template literal.) */
 .pill{flex:none;margin-left:auto;position:relative;display:flex;align-items:center;
   border-radius:999px;background:var(--mw-pill,rgba(0,0,0,0.06));
   border:1px solid var(--mw-pill-border,rgba(0,0,0,0.16));
-  box-shadow:var(--mw-pill-shadow,none);
-  transition:background .26s ease,border-color .26s ease;}
+  box-shadow:var(--mw-pill-shadow,none);color:var(--mw-pill-fg,inherit);
+  transition:background .26s ease,border-color .26s ease,color .26s ease;}
 /* o <select> é nativo de propósito: o menu que abre é o do sistema — o mesmo
    que o usuário já conhece no celular — e vem com teclado e leitor de tela
    de graça. Só a aparência fechada é nossa. */
@@ -429,14 +442,23 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
       const st = this._st;
       const dead = isDead(st);
       const lvl = dead ? null : this._levelColor(st);
+      // onde a cor do nível pousa: no papel do card, na pílula do seletor, ou
+      // nos dois. Pintar só o seletor é o jeito discreto — a parede continua
+      // de papel e só o controle muda de cor.
+      const paint = ["card", "select", "both"].includes(c.level_paint) ? c.level_paint : "card";
+      const paintsCard = paint !== "select";
+      const paintsPill = paint !== "card";
       // uma cor escolhida a dedo para a opção de desligado é um pedido, não um
-      // acidente: o card a mostra como papel, sem deixar de ser mode=off
-      const on = !dead && (!isOffOption(st.state) || !!(lvl && lvl.explicit));
+      // acidente: o card a mostra como papel, sem deixar de ser mode=off. Mas
+      // só quando é o CARD que se pinta — acender o papel para pintar apenas a
+      // pílula diria «ligado» com todas as letras, e não está.
+      const on = !dead && (!isOffOption(st.state) || !!(paintsCard && lvl && lvl.explicit));
       const mode = dead ? "dead" : (!isOffOption(st?.state) ? "on" : "off");
       if (this.getAttribute("mode") !== mode) this.setAttribute("mode", mode);
 
-      const paper = (on && lvl) ? lvl.bg : paperGradient(c.paper_color);
-      const darkPaper = !!(on && lvl && lvl.dark);
+      const cardLvl = (on && paintsCard) ? lvl : null;
+      const paper = cardLvl ? cardLvl.bg : paperGradient(c.paper_color);
+      const darkPaper = !!(cardLvl && cardLvl.dark);
       // no papel escuro o preto de sempre some; o creme da família toma o lugar
       const fgOn = c.color_on_name !== DEFAULTS.color_on_name ? c.color_on_name
         : (darkPaper ? "#fdfaf3" : DEFAULTS.color_on_name);
@@ -499,6 +521,25 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
         this._set("--mw-focus", "rgba(255,255,255,.5)");
       }
 
+      /* A pílula pintada vem DEPOIS dos três estados, por cima: assim ela
+       * funciona mesmo quando o card está no visual de desligado — que é o
+       * caso interessante de `level_paint: select` num countdown. */
+      const lit = !dead && !!lvl && (!isOffOption(st.state) || lvl.explicit);
+      const pillLvl = (paintsPill && lit) ? lvl : null;
+      if (pillLvl) {
+        this._set("--mw-pill", pillLvl.bg);
+        this._set("--mw-pill-fg", pillLvl.dark ? "#fdfaf3" : "#1a1a1a");
+        this._set("--mw-pill-border", pillLvl.dark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.20)");
+        // pintada, a pílula ganha relevo próprio em vez do rebaixo de papel —
+        // é ela que vira o objeto colorido da linha
+        this._set("--mw-pill-shadow", pillLvl.dark
+          ? "0 1px 3px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.14)"
+          : "0 1px 3px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.65)");
+        this._set("--mw-focus", pillLvl.dark ? "rgba(255,255,255,.5)" : "rgba(0,0,0,.4)");
+      } else {
+        this._set("--mw-pill-fg", "");
+      }
+
       const role = roleOf(c.entity);
       const icon = dead ? "mdi:cancel" : (c.icon || st?.attributes?.icon || role.icon);
       if (c.show_icon === false) this._ico.style.display = "none";
@@ -534,6 +575,7 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
     radius: "Arredondamento",
     paper_color: "Cor do papel (ligado)",
     level_scheme: "Esquema de cores por nível",
+    level_paint: "Onde a cor do nível pousa",
     option_labels: "Renomear as opções ({ \"LEVEL 1\": \"Baixo\" })",
     color_on_name: "Ligado: texto e ícone",
     color_on_border: "Ligado: borda",
@@ -641,6 +683,7 @@ select:focus-visible{box-shadow:0 0 0 2px var(--mw-focus,rgba(0,0,0,.35));}
         {
           name: "", type: "expandable", title: "Cor por nível", schema: [
             { name: "level_scheme", selector: sel(schemeOptions()) },
+            { name: "level_paint", selector: sel(PAINT_OPTIONS) },
           ],
         },
         {
