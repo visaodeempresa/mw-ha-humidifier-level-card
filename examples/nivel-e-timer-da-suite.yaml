@@ -1,0 +1,26 @@
+# 🟪 SUÍTE — o card do umidificador em cima, as duas linhas de controle
+# embaixo, todos no mesmo papel.
+type: vertical-stack
+cards:
+  - type: custom:mw-humidifier-card
+    name: 🟪🔌💧
+    paper_color: violet-3
+    entity: switch.tomada_umidificador_suite_local_tomada
+    sensor_potencia: sensor.tomada_umidificador_suite_local_potencia
+    protocol_icon: mdi:wifi
+    buttons:
+      - switch.suite_umidificador_da_suite_local_tomada
+      - switch.suite_umidificador_da_suite_local_led
+      - switch.suite_umidificador_da_suite_local_mute
+      - switch.suite_umidificador_da_suite_local_sleep
+  - type: custom:mw-humidifier-level-card
+    entity: select.suite_umidificador_da_suite_local_spraying_level
+    paper_color: violet-3
+    option_labels:
+      LEVEL 1: Baixo
+      LEVEL 2: Médio
+      LEVEL 3: Alto
+  - type: custom:mw-humidifier-level-card
+    entity: select.suite_umidificador_da_suite_local_countdown
+    name: DESLIGAR EM
+    paper_color: violet-3

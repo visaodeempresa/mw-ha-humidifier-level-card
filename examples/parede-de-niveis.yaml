@@ -1,0 +1,27 @@
+# Os quatro umidificadores da casa, um nível por linha, cada um no papel do
+# seu cômodo. `option_labels` deixa a leitura em português.
+type: vertical-stack
+cards:
+  - type: custom:mw-humidifier-level-card
+    entity: select.suite_umidificador_da_suite_local_spraying_level
+    name: 🟪 SUÍTE
+    paper_color: violet-3
+    option_labels: &niveis
+      LEVEL 1: Baixo
+      LEVEL 2: Médio
+      LEVEL 3: Alto
+  - type: custom:mw-humidifier-level-card
+    entity: select.escritorio_umidificador_escritorio_local_spraying_level
+    name: ⬛️ ESCRITÓRIO
+    paper_color: blue-3
+    option_labels: *niveis
+  - type: custom:mw-humidifier-level-card
+    entity: select.umidificador_da_janela_da_sala_spraying_level
+    name: 🟧🪟 JANELA DA SALA
+    paper_color: orange-3
+    option_labels: *niveis
+  - type: custom:mw-humidifier-level-card
+    entity: select.umidificador_da_sala_spraying_level
+    name: 🟧🧘🏻 SALA DE YOGA
+    paper_color: orange-3
+    option_labels: *niveis

@@ -1,0 +1,4 @@
+# ⬛️ ESCRITÓRIO — o mínimo: só a entidade. O rótulo (NÍVEL), o ícone (gota) e
+# as opções saem sozinhos; numa view `sections` já ocupa a linha inteira.
+type: custom:mw-humidifier-level-card
+entity: select.escritorio_umidificador_escritorio_local_spraying_level

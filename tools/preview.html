@@ -1,0 +1,99 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>mw-humidifier-level-card — bancada</title>
+<!--
+  Abre direto no navegador (ou `python3 -m http.server` na raiz do repo) e
+  mostra o card nos quatro estados, sem Home Assistant. `?shot=<cena>` renderiza
+  uma cena só, para print.
+-->
+<style>
+  html,body{margin:0;background:#12151a;color:#dfe6ee;
+    font:13px/1.4 -apple-system,system-ui,sans-serif;}
+  /* o frontend do HA define line-height ABSOLUTO no body e ele herda para
+     dentro do shadow DOM do card — a bancada tem de herdar o que o HA herda,
+     senão nunca reproduz o bug de layout. Aqui vai o dobro, de propósito. */
+  body{line-height:32px;font-size:20px;padding:18px;}
+  h2{font:600 12px/1.4 inherit;opacity:.65;margin:20px 0 8px;letter-spacing:.4px;}
+  .col{max-width:520px;display:flex;flex-direction:column;gap:10px;}
+  .cap{font:11px/1.3 inherit;opacity:.5;}
+  #stage{padding:0;}
+</style>
+
+<div id="stage"></div>
+
+<script>
+class HaCard extends HTMLElement { connectedCallback(){ this.style.display="block"; } }
+customElements.define("ha-card", HaCard);
+let MDI = {};
+class HaIcon extends HTMLElement {
+  static get observedAttributes(){ return ["icon"]; }
+  connectedCallback(){ this._draw(); }
+  attributeChangedCallback(){ this._draw(); }
+  _draw(){
+    const p = MDI[this.getAttribute("icon")] || "";
+    this.innerHTML = `<svg viewBox="0 0 24 24" style="width:100%;height:100%;display:block;">
+      <path fill="currentColor" d="${p}"></path></svg>`;
+  }
+}
+customElements.define("ha-icon", HaIcon);
+</script>
+<script src="../dist/mw-humidifier-level-card.js"></script>
+<script>
+const S=(s,a={})=>({state:s,attributes:a});
+const LEVELS=["LEVEL 1","LEVEL 2","LEVEL 3"];
+const COUNT=["1 Hour","2 Hours","3 Hours","cancel"];
+const base={
+ "select.nivel":S("LEVEL 1",{options:LEVELS,friendly_name:"UMIDIFICADOR ESCRITÓRIO Spraying level"}),
+ "select.nivel3":S("LEVEL 3",{options:LEVELS,friendly_name:"Spraying level"}),
+ "select.countdown":S("cancel",{options:COUNT,friendly_name:"Countdown"}),
+ "select.countdown_on":S("3 Hours",{options:COUNT,friendly_name:"Countdown"}),
+ "select.morto":S("unavailable",{friendly_name:"UMIDIFICADOR DA SALA Spraying level"}),
+};
+const hass={states:base,entities:{},devices:{},callService(d,s,x){console.log("callService",d,s,x);}};
+
+const add=(host,cfg,cap)=>{
+  const el=document.createElement("mw-humidifier-level-card");
+  el.setConfig(cfg); host.appendChild(el); el.hass=hass;
+  if(cap){const c=document.createElement("div");c.className="cap";c.textContent=cap;host.appendChild(c);}
+};
+
+const SHOTS = {
+  "estados": (host)=>{
+    add(host,{entity:"select.nivel",name:"NÍVEL"},"ligado — papel creme, pílula rebaixada");
+    add(host,{entity:"select.countdown",name:"TIMER"},"desligado (opção 'cancel') — fundo escuro");
+    add(host,{entity:"select.morto",name:"NÍVEL"},"sem resposta — 🚫 âmbar, rótulo riscado, seletor travado");
+  },
+  "minimo": (host)=>{
+    add(host,{entity:"select.nivel"},"sem uma linha de configuração além da entidade");
+  },
+  "papeis": (host)=>{
+    ["paper","violet-3","blue-3","green-4","orange-3"].forEach(p=>
+      add(host,{entity:"select.nivel3",name:"NÍVEL",paper_color:p},"paper_color: "+p));
+  },
+  "opcoes": (host)=>{
+    add(host,{entity:"select.nivel3",name:"NÍVEL",
+      option_labels:{"LEVEL 1":"Baixo","LEVEL 2":"Médio","LEVEL 3":"Alto"}},
+      "option_labels — o valor enviado ao HA continua o original");
+    add(host,{entity:"select.countdown_on",name:"DESLIGAR EM",icon:"mdi:timer-outline"},
+      "o mesmo card serve para o countdown");
+  },
+  "tamanhos": (host)=>{
+    [36,48,64].forEach(h=>add(host,{entity:"select.nivel3",name:"NÍVEL",height:h},"height: "+h));
+    add(host,{entity:"select.nivel3",show_icon:false,show_name:false},"só o seletor");
+  },
+};
+
+fetch("./mdi-paths.json").then(r=>r.json()).then(m=>{
+  MDI=m;
+  document.querySelectorAll("ha-icon").forEach(i=>i._draw());
+  const stage=document.getElementById("stage");
+  const only=new URLSearchParams(location.search).get("shot");
+  (only?[only]:Object.keys(SHOTS)).forEach(k=>{
+    if(!SHOTS[k]) return;
+    if(!only){const h=document.createElement("h2");h.textContent=k;stage.appendChild(h);}
+    const col=document.createElement("div"); col.className="col";
+    stage.appendChild(col); SHOTS[k](col);
+  });
+  setTimeout(()=>{document.title="ready";},300);
+});
+</script>
