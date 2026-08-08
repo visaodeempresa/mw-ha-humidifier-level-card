@@ -1,5 +1,34 @@
 # Histórico — mw-ha-humidifier-level-card
 
+## 2026-08-08 — onde a cor pousa (v0.3.0)
+
+Pedido do dono, vendo os testes da v0.2.0: «adicione a opção de alterar a cor
+apenas do SELECT, ao invés do card inteiro. As duas opções podem ser legais.»
+
+`level_paint`: `card` (padrão, o que já existia), `select` e `both`. O modo
+`select` é o discreto — numa coluna de umidificadores, três cards coloridos
+brigam entre si; três pílulas coloridas sobre papel, não.
+
+Duas decisões que o teste na bancada obrigou:
+
+- **A pílula precisa de cor de texto própria.** Ela herdava a cor da linha,
+  que é calculada contra o papel do card; com a cor no seletor, o contraste
+  tem de ser contra a **pílula**. Daí `--mw-pill-fg`, com `inherit` como
+  fallback do `var()` — sem a variável, herda como sempre herdou.
+- **Pintar a pílula não acende o papel.** Cor explícita numa opção de
+  desligado ligava o visual «ligado» (v0.2.0); com `level_paint: select` isso
+  seria mentira — o card ficaria de papel creme dizendo que o aparelho está
+  ligado. Agora só o modo que pinta o CARD tem esse poder; a pílula pintada
+  convive com o card escuro.
+
+E uma armadilha boba, que custou um `node --check`: **comentário com crase
+dentro do bloco CSS** — ele mora num template literal, e `` `level_paint` ``
+fecha a string. Não escrever crase ali dentro.
+
+Verificado: `node --check`, probe com 83 verificações (17 novas), bancada na
+cena `pintura`. Esta versão também serviu de teste do auto-release: PR
+mergeado → release publicada sozinha.
+
 ## 2026-08-08 — a esteira (DevOps da família)
 
 Pedido do dono: «não gere versão/release, padronize de acordo com o DevOps e

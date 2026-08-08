@@ -251,6 +251,53 @@ check("sem resposta ignora a cor do nível",
   prop(mk({ entity: "select.umidificador_da_sala_spraying_level", level_scheme: "agua" }), "--mw-bg")
     === "rgba(80, 0, 0, 0.6)");
 
+console.log("onde a cor pousa (level_paint):");
+const pillAt = (lvl, cfg) => prop(atLevel(lvl, cfg), "--mw-pill");
+const AGUA = { level_scheme: "agua" };
+const SEL = { level_scheme: "agua", level_paint: "select" };
+const BOTH = { level_scheme: "agua", level_paint: "both" };
+
+check("padrão continua pintando o card (quem já usa não vê diferença)",
+  bgAt("LEVEL 3", AGUA) === bgAt("LEVEL 3", { ...AGUA, level_paint: "card" }));
+check("só o seletor: o card volta ao papel de sempre",
+  bgAt("LEVEL 3", SEL) === "linear-gradient(145deg, #fdfaf3, #e8e3d8)", bgAt("LEVEL 3", SEL));
+check("só o seletor: a pílula recebe a cor do nível",
+  pillAt("LEVEL 3", SEL) === bgAt("LEVEL 3", AGUA), pillAt("LEVEL 3", SEL));
+check("só o seletor: cada nível dá uma pílula diferente",
+  new Set(LEVELS.map((l) => pillAt(l, SEL))).size === 3);
+check("os dois: card e pílula com a mesma cor",
+  bgAt("LEVEL 3", BOTH) === pillAt("LEVEL 3", BOTH) &&
+  bgAt("LEVEL 3", BOTH) === bgAt("LEVEL 3", AGUA));
+check("no modo card a pílula segue neutra, como sempre foi",
+  pillAt("LEVEL 1", AGUA) === "rgba(0,0,0,0.055)", pillAt("LEVEL 1", AGUA));
+check("…inclusive sobre papel escuro, onde ela só escurece um pouco",
+  pillAt("LEVEL 3", AGUA) === "rgba(0,0,0,0.22)", pillAt("LEVEL 3", AGUA));
+
+check("pílula escura acende o texto DELA em creme",
+  prop(atLevel("LEVEL 1", { level_paint: "select", level_colors: { "LEVEL 1": "#12203a" } }),
+    "--mw-pill-fg") === "#fdfaf3");
+check("pílula clara mantém o texto escuro",
+  prop(atLevel("LEVEL 1", { level_paint: "select", level_colors: { "LEVEL 1": "#ffe08a" } }),
+    "--mw-pill-fg") === "#1a1a1a");
+check("sem cor por nível, a pílula não força cor de texto (herda a linha)",
+  prop(atLevel("LEVEL 1", {}), "--mw-pill-fg") === "");
+check("papel escuro no modo card não vaza cor de texto para a pílula",
+  prop(atLevel("LEVEL 1", { level_colors: { "LEVEL 1": "#12203a" } }), "--mw-pill-fg") === "");
+
+const cdSel = cd("cancel", { level_scheme: "agua", level_paint: "select" });
+check("com só-o-seletor, o desligado continua escuro (não finge estar ligado)",
+  prop(cdSel, "--mw-bg") === "rgba(0, 0, 0, 0.45)" && cdSel.getAttribute("mode") === "off");
+const cdSelFixa = cd("cancel", { level_paint: "select", level_colors: { cancel: "#a9dcc4" } });
+check("…e a cor escolhida a dedo pinta só a pílula, sem acender o papel",
+  prop(cdSelFixa, "--mw-bg") === "rgba(0, 0, 0, 0.45)" &&
+  /rgba\(/.test(prop(cdSelFixa, "--mw-pill")),
+  prop(cdSelFixa, "--mw-pill"));
+check("sem resposta ignora a pintura da pílula também",
+  prop(mk({ entity: "select.umidificador_da_sala_spraying_level", ...SEL }), "--mw-pill")
+    === "rgba(255,255,255,0.06)");
+check("valor inválido em level_paint cai no card, não quebra",
+  bgAt("LEVEL 3", { level_scheme: "agua", level_paint: "xablau" }) === bgAt("LEVEL 3", AGUA));
+
 console.log("aparência e configuração:");
 const custom = mk({ entity: ESC, name: "NÍVEL", icon: "mdi:spray", paper_color: "blue-3", height: 56 });
 check("nome do YAML vence", custom._nm.textContent === "NÍVEL");

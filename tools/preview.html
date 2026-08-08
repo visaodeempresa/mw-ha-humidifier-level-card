@@ -92,6 +92,16 @@ const SHOTS = {
     add(host,{entity:"select.countdown",name:"TIMER",level_colors:{cancel:"#a9dcc4"}},
       "cor escolhida a dedo pinta até a opção de desligado");
   },
+  "pintura": (host)=>{
+    NIVEIS.forEach((e,i)=>add(host,{entity:e,name:"NÍVEL "+(i+1),level_scheme:"agua"},
+      i===2?"level_paint: card (padrão) — o papel inteiro":null));
+    NIVEIS.forEach((e,i)=>add(host,{entity:e,name:"NÍVEL "+(i+1),level_scheme:"agua",level_paint:"select"},
+      i===2?"level_paint: select — a parede segue de papel, só a pílula muda":null));
+    NIVEIS.forEach((e,i)=>add(host,{entity:e,name:"NÍVEL "+(i+1),level_scheme:"agua",level_paint:"both"},
+      i===2?"level_paint: both":null));
+    add(host,{entity:"select.countdown",name:"TIMER",level_scheme:"agua",level_paint:"select"},
+      "desligado com level_paint: select — o card continua escuro, sem fingir que ligou");
+  },
   "tamanhos": (host)=>{
     [36,48,64].forEach(h=>add(host,{entity:"select.nivel3",name:"NÍVEL",height:h},"height: "+h));
     add(host,{entity:"select.nivel3",show_icon:false,show_name:false},"só o seletor");

@@ -113,7 +113,25 @@ elas moram no fim da lista e puxariam a rampa inteira.
 > São cartolinas: saturação média, nunca néon, com o mesmo relevo por cima.
 > Para o sussurro, os esquemas `nevoa` e `encardido`.
 
-### 4 · Escolher a cor de cada opção na mão
+### 4 · Onde a cor pousa: no card ou só no seletor
+
+![onde a cor pousa](docs/img/pintura.png)
+
+```yaml
+level_paint: select      # card (padrão) · select · both
+```
+
+| `level_paint` | O que pinta |
+|---|---|
+| `card` *(padrão)* | O papel inteiro. Lê-se de longe; a parede muda de cor com o nível. |
+| `select` | Só a pílula do seletor. A parede continua de papel e só o controle muda — bom para uma coluna de umidificadores lado a lado, onde três cards coloridos brigariam entre si. |
+| `both` | Os dois. |
+
+Com `select`, o texto **dentro da pílula** ganha contraste próprio: a cor está
+nela, não no papel atrás. E a opção de desligado continua honesta — o card
+fica escuro, sem fingir que ligou, mesmo quando a pílula está pintada.
+
+### 5 · Escolher a cor de cada opção na mão
 
 ![cores livres](docs/img/cores-livres.png)
 
@@ -148,7 +166,7 @@ Quem prefere a lista por posição (útil quando as opções mudam de nome):
 level_colors: ["#dff1ff", "#4f8fd6", "#12203a"]
 ```
 
-### 5 · Renomear as opções
+### 6 · Renomear as opções
 
 ![opções e countdown](docs/img/opcoes.png)
 
@@ -164,7 +182,7 @@ option_labels:
   LEVEL 3: Alto
 ```
 
-### 6 · O mesmo card para o countdown
+### 7 · O mesmo card para o countdown
 
 ```yaml
 type: custom:mw-humidifier-level-card
@@ -173,7 +191,7 @@ name: DESLIGAR EM
 icon: mdi:timer-outline
 ```
 
-### 7 · Empilhado embaixo do card do umidificador
+### 8 · Empilhado embaixo do card do umidificador
 
 O par natural: o [MW Humidifier
 Card](https://github.com/visaodeempresa/mw-ha-humidifier-card) em cima, as
@@ -200,7 +218,7 @@ cards:
     paper_color: violet-3
 ```
 
-### 8 · Tamanhos
+### 9 · Tamanhos
 
 ![tamanhos](docs/img/tamanhos.png)
 
@@ -222,7 +240,7 @@ show_name: false    # só o ícone e o seletor
 | **Entidade do seletor** | Filtrada pelo dispositivo. Sem dispositivo, mostra só os que parecem de nível; em último caso, todos os `select` da casa. |
 | **Rótulo / Ícone** | Vazios = o papel da entidade. |
 | **Aparência** | Papel, altura, arredondamento, mostrar ícone/rótulo, vibração. |
-| **Cor por nível** | O esquema pronto (`level_scheme`). |
+| **Cor por nível** | O esquema pronto (`level_scheme`) e onde a cor pousa (`level_paint`: card · seletor · os dois). |
 | **Cor de cada opção** | Uma linha por opção da entidade: paleta de papel, cor livre ou «do esquema». Mostra de onde veio a cor que está valendo. |
 | **Renomear as opções** | O mapa `option_labels`. |
 | **Cores** | Cada estado com cor **e** transparência. |
@@ -241,6 +259,7 @@ grava defaults no YAML**.
 | `option_labels` | mapa | — | `{ "LEVEL 1": "Baixo" }`. Não muda o valor enviado. |
 | `paper_color` | `paper` \| `<matiz>-<1..7>` | `paper` | Papel do estado ativo, quando não há cor por nível. |
 | `level_scheme` | string | `none` | Rampa por nível: `agua`, `verde`, `mare`, `semaforo`, `calor`, `arco-iris`, `noite`, `nevoa`, `encardido`. |
+| `level_paint` | `card` \| `select` \| `both` | `card` | Onde a cor do nível pousa: no papel do card, só na pílula do seletor, ou nos dois. |
 | `level_colors` | mapa \| lista | — | Cor por opção (`{ "LEVEL 1": "#dff1ff" }`) ou por posição. Vence o esquema. Aceita chave da paleta, hex, `rgb()`, nome do CSS ou gradiente. |
 | `height` | número | `48` | Altura da linha em px. O ícone é 46% dela. |
 | `radius` | número | `14` | Arredondamento em px. |
@@ -288,7 +307,7 @@ probe:
 
 ```bash
 node --check dist/mw-humidifier-level-card.js
-node tools/probe.js                  # 66 verificações, sem navegador
+node tools/probe.js                  # 83 verificações, sem navegador
 ```
 
 Bancada visual sem Home Assistant:

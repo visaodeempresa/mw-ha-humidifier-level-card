@@ -40,6 +40,15 @@ dado — e as *lições* dos irmãos, que vieram como código copiado à mão.
 - [x] Probe: 66 verificações. Bancada: cenas `niveis` e `cores-livres`.
 - [ ] **Conferência na tela do HA — do dono.**
 
+## Entrega 1.2 — onde a cor pousa (v0.3.0)
+
+- [x] `level_paint`: `card` (padrão) · `select` · `both`.
+- [x] Pílula com contraste próprio (`--mw-pill-fg`), porque a cor pousa nela.
+- [x] Pintar a pílula **não** acende o papel: o desligado continua desligado.
+- [x] Probe: 83 verificações. Bancada: cena `pintura`.
+- [x] Release publicada pelo auto-release (serviu de teste da esteira).
+- [ ] **Conferência na tela do HA — do dono.**
+
 ## Entrega 2 — publicação
 
 - [x] Repositório público, release v0.1.0 por tag assinada, HACS.
