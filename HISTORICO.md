@@ -1,5 +1,30 @@
 # Histórico — mw-ha-humidifier-level-card
 
+## 2026-08-08 — a esteira (DevOps da família)
+
+Pedido do dono: «não gere versão/release, padronize de acordo com o DevOps e
+veja se está gerando automaticamente.»
+
+`IA/tools/mw-devops.sh apply` trouxe CI (sintaxe + probe em todo push e PR),
+auto-release, release manual de fallback e o PR template; o `tools/probe.js`
+foi preservado, como manda o script — é código deste card, não boilerplate.
+Lado GitHub: merge commit (rebase e squash desligados, senão a assinatura GPG
+do dono some), apaga branch no merge, topics e ruleset `main-protegida`.
+
+**Armadilha nova, e ela é do processo, não do código:** a esteira chegou
+*depois* do merge que deveria ter publicado. O PR da cor por nível entrou na
+`main` às 06:18 com o `dist` já em 0.2.0; o PR da esteira, às 06:33. Como o
+gatilho é *push na main que toque `dist/**`*, e o push que mudou o `dist` não
+tinha o workflow, a release ficou órfã — e ficaria até alguém tocar o
+componente de novo. A correção foi para o **template canônico**, não para
+este repo: `workflow_dispatch` no auto-release, com o `if:` aceitando o
+disparo manual (`github.event.head_commit` não existe nesse evento). Mesmo
+cálculo de bump, só um gatilho que uma pessoa pode apertar uma vez.
+
+Verificado: CI verde nos PRs #2 e #3, e a **v0.2.0 publicada pelo próprio
+workflow** — asset com `const VERSION = "0.2.0"`, conferido no arquivo que o
+GitHub entrega. Nenhuma tag foi criada à mão.
+
 ## 2026-08-08 — cor por nível (v0.2.0)
 
 Pedido do dono, com o print da linha `NÍVEL · LEVEL 3` em papel creme: «que o

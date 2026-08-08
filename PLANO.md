@@ -44,9 +44,21 @@ dado — e as *lições* dos irmãos, que vieram como código copiado à mão.
 
 - [x] Repositório público, release v0.1.0 por tag assinada, HACS.
 
-## Entrega 3 — DevOps (aguardando o ok do dono depois do teste na tela)
+## Entrega 3 — DevOps (feita em 08/08/2026)
 
-- [ ] `IA/tools/mw-devops.sh apply mw-ha-humidifier-level-card`.
+- [x] `IA/tools/mw-devops.sh apply` — CI (sintaxe + probe), auto-release,
+      release manual de fallback e PR template. O probe rico foi preservado.
+- [x] Lado GitHub: merge commit (preserva a assinatura GPG), apaga branch,
+      topics, ruleset `main-protegida`.
+- [x] `workflow_dispatch` no auto-release, nascido aqui e devolvido ao
+      template canônico: quando a esteira chega **depois** do merge que
+      deveria publicar, a release fica órfã até o próximo commit tocar o
+      componente. Foi o que houve com a v0.2.0.
+- [x] Verificado de ponta a ponta: CI verde nos PRs #2 e #3, e a **v0.2.0
+      publicada pelo próprio workflow**, com o asset em 0.2.0.
+
+Daqui pra frente: nada de tag à mão. Merge na `main` tocando `dist/**` →
+release sozinha.
 
 ## Próximas (só com pedido do dono)
 
